@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+
+help=$(cat <<EOF
+
+Usage: config-vpn ( <connect> | <disconnect> )
+
+    example: config-vpn connect
+             config-vpn disconnect
+\n
+EOF
+)
+
+task=$1
+
+check_for_connection() {
+    if [[ $(nmcli connection show --active | tail -n+2 | wc -l) -gt 2 ]]; then
+        echo -e "\n\nYou seem to be connected already... \n"
+        printf "%0.s*" $(seq 1 $(nmcli con show --active | head -n1 | wc -m))
+        echo -e "\n$(nmcli con show --active | tail -n+2)"
+        printf "%0.s*" $(seq 1 $(nmcli con show --active | head -n1 | wc -m))
+        echo -e "\nAre you sure you want to continue? (y/n)"
+        read ans
+        if [[ $ans = "y" || $ans = "yes" ]]; then
+            if nmcli con show --active | grep -q "yale"; then
+                sudo killall -SIGINT openconnect
+            elif nmcli con show --active | grep -q "wireguard"; then
+                nmcli con down $(nmcli con show --active | grep 'wireguard' | awk '{print $1}')
+            elif nmcli con show --active | grep -q "mull-ovpn"; then
+                sudo tailscale down
+                sudo systemctl stop tailscaled
+                sudo systemctl stop openvpn-client@mullvad_us_nyc
+            else
+                echo "nothing to stop..."
+            fi
+        else
+            echo Doing nothing
+            exit 0
+        fi
+    fi
+}
+
+run_disconnect() {
+    echo Attemping to disconnect vpn...
+    if nmcli con show --active | grep -q "wireguard"; then
+        echo Disconnecting from Mullvad
+        nmcli con down $(nmcli con show --active | grep "wireguard" | awk '{print $1}')
+        sudo systemctl start tailscaled
+        sudo tailscale up
+        systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
+        systemctl status nextdns | head -n3 | echo "NextDNS =" $(grep --color=always "active")
+        exit 0
+    elif nmcli con show --active | grep -q "yale"; then
+        echo Disconnecting from Cisco\/Yale
+        sudo killall -SIGINT openconnect
+        sudo systemctl start tailscaled
+        sudo tailscale up
+        systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
+        systemctl status nextdns | head -n3 | echo "NextDNS =" $(grep --color=always "active")
+        exit 0
+   elif nmcli con show --active | grep -q "mull-ovpn"; then
+        echo Disconnecting from Mullvad-openvpn
+        sudo systemctl stop openvpn-client@mullvad_us_nyc
+        sudo systemctl start tailscaled
+        sudo tailscale up
+        systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
+        systemctl status nextdns | head -n3 | echo "NextDNS =" $(grep --color=always "active")
+        exit 0
+    else
+        echo Something went wrong in run_disconnect...
+        echo No VPNs seem to be active.
+        exit 1
+    fi
+}
+
+connect_mullvad(){
+     host=$1
+     avail_hosts=("mullvad-wg" "mullvad-openvpn")
+     for hosts in "${avail_hosts[@]}"; do
+         if [[ $1 == "$hosts" ]]; then
+             connection="$hosts"
+             if [[ $connection = "mullvad-wg" ]]; then
+                 mull_connections=($(nmcli con show | grep 'wireguard' | awk '{print $1}'))
+                 ndx=0
+                 for i in "${mull_connections[@]}"; do
+                     echo $ndx: $i
+                     ((ndx=ndx+1))
+                 done
+                 printf "\nWhich server would you like to connect to?\n"
+                 read ans
+                 echo Connecting to: "${mull_connections[$ans]}"
+                 sudo tailscale down
+                 sudo systemctl stop tailscaled
+                 nmcli con up "${mull_connections[$ans]}"
+                 exit 0
+             elif [[ $connection == "mullvad-openvpn" ]]; then
+                 sudo tailscale down
+                 sudo systemctl stop tailscaled
+                 sudo systemctl start openvpn-client@mullvad_us_nyc
+                 exit 0
+             else echo "Something went wrong in connect_mullvad"
+                 exit 1
+             fi
+         fi
+     done
+ }
+
+connect_yale() {
+    host=$1
+    if [[ $host = "yale" ]]; then
+        yale_connections=("access.yale.edu" "access.yale.edu/pet_image")
+        ndx=0
+        for i in "${yale_connections[@]}"; do
+            echo $ndx: $i
+            ((ndx=ndx+1))
+        done
+        printf "\nWhich server would you like to connect to?\n"
+        read ans
+        echo Connecting to: "${yale_connections[$ans]}"
+        sudo tailscale down
+        sudo systemctl stop tailscaled
+        password=$(sudo cat /home/loadedvegangoat/.creds/wfs | head -n2 | tail -n1 | cut -d'=' -f2)
+        { printf "$password\n"; sleep 1; printf "phone\n"; } | sudo openconnect --background --protocol=anyconnect --interface=yale -u rtc29 --passwd-on-stdin "${yale_connections[$ans]}"
+        exit 0
+    else
+        echo Something went wrong in run_connect...
+        exit 1
+    fi
+}
+
+main() {
+    if [[ $task == "-h" || $task == "--help" ]]; then
+        printf "$help"
+        exit 0
+    elif [[ $task == "connect" ]]; then
+        can_connect=("mullvad-wg" "mullvad-openvpn" "yale")
+        printf "\ninitiating connection check...\n\n"
+        if check_for_connection; then
+            ndx=0
+            for i in "${can_connect[@]}"; do
+                echo $ndx: $i
+                ((ndx=ndx+1))
+            done
+            printf "\nWhich would you like to connect to?\n"
+            read ans
+            if [[ "${can_connect[$ans]}" == "mullvad-wg" || "${can_connect[$ans]}" == "mullvad-openvpn" ]]; then
+                connect_mullvad "${can_connect[$ans]}"
+                exit 0
+            elif [[ "${can_connect[$ans]}" == "yale" ]]; then
+                connect_yale yale
+                exit 0
+            fi
+        else
+             echo Something went wrong...
+             exit 1
+        fi
+    elif [[ $task == "disconnect" ]]; then
+        run_disconnect
+        exit 0
+    else
+    	printf "You entered something wrong\n"
+        printf "$help"
+        exit 1
+    fi
+    }
+
+main
