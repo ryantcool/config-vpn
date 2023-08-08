@@ -118,7 +118,7 @@ connect_yale() {
         echo Connecting to: "${yale_connections[$ans]}"
         sudo tailscale down
         sudo systemctl stop tailscaled
-        password=$(sudo cat /home/loadedvegangoat/.creds/wfs | head -n2 | tail -n1 | cut -d'=' -f2)
+        password=$(sudo sed -n 2p .creds/wfs | cut -d'=' -f2)
         { printf "$password\n"; sleep 1; printf "phone\n"; } | sudo openconnect --background --protocol=anyconnect --interface=yale -u rtc29 --passwd-on-stdin "${yale_connections[$ans]}"
         exit 0
     else
