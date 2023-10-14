@@ -44,32 +44,23 @@ run_disconnect() {
     if nmcli con show --active | grep -q "wireguard"; then
         echo Disconnecting from Mullvad
         nmcli con down $(nmcli con show --active | grep "wireguard" | awk '{print $1}')
-        sudo systemctl restart nextdns.service
-        sleep 5
         sudo systemctl start tailscaled
         sudo tailscale up
         systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
-        systemctl status nextdns | head -n3 | echo "NextDNS =" $(grep --color=always "active")
         exit 0
     elif nmcli con show --active | grep -q "yale"; then
         echo Disconnecting from Cisco\/Yale
         sudo killall -SIGINT openconnect
-        sudo systemctl restart nextdns.service
-        sleep 5
         sudo systemctl start tailscaled
         sudo tailscale up
         systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
-        systemctl status nextdns | head -n3 | echo "NextDNS =" $(grep --color=always "active")
         exit 0
    elif nmcli con show --active | grep -q "mull-ovpn"; then
         echo Disconnecting from Mullvad-openvpn
         sudo systemctl stop openvpn-client@mullvad_us_nyc
-        sudo systemctl restart nextdns.service
-        sleep 5
         sudo systemctl start tailscaled
         sudo tailscale up
         systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
-        systemctl status nextdns | head -n3 | echo "NextDNS =" $(grep --color=always "active")
         exit 0
     else
         echo Something went wrong in run_disconnect...
@@ -124,9 +115,12 @@ connect_yale() {
         echo Connecting to: "${yale_connections[$ans]}"
         sudo tailscale down
         sudo systemctl stop tailscaled
-        sudo systemctl stop nextdns
+        user=$(sudo sed -n 1p .creds/wfs | cut -d'=' -f2)
         password=$(sudo sed -n 2p .creds/wfs | cut -d'=' -f2)
-        { printf "$password\n"; sleep 1; printf "phone\n"; } | sudo openconnect --background --protocol=anyconnect --interface=yale -u rtc29 --passwd-on-stdin "${yale_connections[$ans]}"
+        { printf "$password\n"; sleep 1; printf "phone\n"; } | sudo openconnect --background --protocol=anyconnect --interface=yale -u $user --passwd-on-stdin "${yale_connections[$ans]}" &
+        wait
+        sleep 1
+        sudo -- sh -c "resolvectl domain yale '~yale.edu' '~yale.internal'; resolvectl default-route yale false; resolvectl dnsovertls yale no"
         exit 0
     else
         echo Something went wrong in run_connect...
