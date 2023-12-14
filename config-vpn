@@ -15,16 +15,16 @@ task=$1
 check_for_connection() {
     if [[ $(nmcli connection show --active | tail -n+2 | wc -l) -gt 3 ]]; then
         echo -e "\n\nYou seem to be connected already... \n"
-        printf "%0.s*" $(seq 1 $(nmcli con show --active | head -n1 | wc -m))
+        printf "%0.s*" $(seq 1 "$(nmcli con show --active | head -n1 | wc -m)")
         echo -e "\n$(nmcli con show --active | tail -n+2)"
-        printf "%0.s*" $(seq 1 $(nmcli con show --active | head -n1 | wc -m))
+        printf "%0.s*" $(seq 1 "$(nmcli con show --active | head -n1 | wc -m)")
         echo -e "\nAre you sure you want to continue? (y/n)"
         read ans
         if [[ $ans = "y" || $ans = "yes" ]]; then
             if nmcli con show --active | grep -q "yale"; then
                 sudo killall -SIGINT openconnect
             elif nmcli con show --active | grep -q "wireguard"; then
-                nmcli con down $(nmcli con show --active | grep 'wireguard' | awk '{print $1}')
+                nmcli con down "$(nmcli con show --active | grep 'wireguard' | awk '{print $1}')"
             elif nmcli con show --active | grep -q "mull-ovpn"; then
                 sudo tailscale down
                 sudo systemctl stop tailscaled
@@ -43,24 +43,24 @@ run_disconnect() {
     echo Attemping to disconnect vpn...
     if nmcli con show --active | grep -q "wireguard"; then
         echo Disconnecting from Mullvad
-        nmcli con down $(nmcli con show --active | grep "wireguard" | awk '{print $1}')
+        nmcli con down "$(nmcli con show --active | grep "wireguard" | awk '{print $1}')"
         sudo systemctl start tailscaled
         sudo tailscale up
-        systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
+        systemctl status tailscaled | head -n3 | tr -s '[:space:]' | printf 'Tailscale = %s\n' "$(grep --color=always "active")"
         exit 0
     elif nmcli con show --active | grep -q "yale"; then
         echo Disconnecting from Cisco\/Yale
         sudo killall -SIGINT openconnect
         sudo systemctl start tailscaled
         sudo tailscale up
-        systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
+        systemctl status tailscaled | head -n3 | tr -s '[:space:]' | printf 'Tailscale = %s\n' "$(grep --color=always "active")"
         exit 0
    elif nmcli con show --active | grep -q "mull-ovpn"; then
         echo Disconnecting from Mullvad-openvpn
         sudo systemctl stop openvpn-client@mullvad_us_nyc
         sudo systemctl start tailscaled
         sudo tailscale up
-        systemctl status tailscaled | head -n3 | echo "Tailscale =" $(grep --color=always "active")
+        systemctl status tailscaled | head -n3 | tr -s '[:space:]' | printf 'Tailscale = %s\n' "$(grep --color=always "active")"
         exit 0
     else
         echo Something went wrong in run_disconnect...
@@ -117,10 +117,10 @@ connect_yale() {
         sudo systemctl stop tailscaled
         user=$(sudo sed -n 1p ~/.creds/wfs | cut -d'=' -f2)
         password=$(sudo sed -n 2p ~/.creds/wfs | cut -d'=' -f2)
-        { printf "$password\n"; sleep 1; printf "phone\n"; } | sudo openconnect --background --protocol=anyconnect --interface=yale -u "$user" --passwd-on-stdin "${yale_connections[$ans]}" &
+        { printf '%s' "$password\n"; sleep 1; printf "phone\n"; } | sudo openconnect --background --protocol=anyconnect --useragent AnyConnect --external-browser firefox --interface=yale -u "$user" --passwd-on-stdin "${yale_connections[$ans]}" &
         wait
         sleep 1
-        sudo -- sh -c "resolvectl domain yale '~yale.edu' '~yale.internal'; resolvectl default-route yale false; resolvectl dnsovertls yale no"
+        sudo -- sh -c "resolvectl dns yale 172.18.190.12 172.18.190.20 172.18.190.28; resolvectl domain yale '~.'; resolvectl default-route yale true; resolvectl dnsovertls yale no"
         exit 0
     else
         echo Something went wrong in run_connect...
@@ -130,7 +130,7 @@ connect_yale() {
 
 main() {
     if [[ $task == "-h" || $task == "--help" ]]; then
-        printf "$help"
+        printf '%s' "$help"
         exit 0
     elif [[ $task == "connect" ]]; then
         can_connect=("mullvad-wg" "mullvad-openvpn" "yale")
@@ -147,8 +147,11 @@ main() {
                 connect_mullvad "${can_connect[$ans]}"
                 exit 0
             elif [[ "${can_connect[$ans]}" == "yale" ]]; then
-                connect_yale yale
+                connect_yale "yale"
                 exit 0
+            else
+                echo "Error running can_connect function"
+                exit 1
             fi
         else
              echo Something went wrong...
@@ -159,7 +162,7 @@ main() {
         exit 0
     else
     	printf "You entered something wrong\n"
-        printf "$help"
+        printf '%s' "$help"
         exit 1
     fi
     }
