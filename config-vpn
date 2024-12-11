@@ -109,6 +109,13 @@ connect_yale() {
         # tun device the user can use via root shell:
         # ip tuntap add <vpnname> mode tun user <username>
         # This allows external browser to properly spawn for SSO authentication
+        printf "\nChecking if tun device for %s\n" "${yale_connections["${ans}"]}"
+        if ip a | grep -q "yale"; then
+            printf "\nTun device for %s appears to already be set\n" "${yale_connections["${ans}"]}"
+        else
+            printf "\nTun device not set, attempting to set up now\n"
+            sudo ip tuntap add yale mode tun user "$USER"
+        fi
         { printf '%s' "${password}\n"; sleep 1; printf "phone\n"; } | openconnect \
         -s "sudo -E /etc/vpnc/vpnc-script" \
         --background \
