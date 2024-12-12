@@ -20,7 +20,7 @@ check_for_connection() {
         read -r -p " Are you sure you want to continue? (y/n) " ans
         if [[ "${ans}" = "y" || "${ans}" = "yes" ]]; then
             if nmcli con show --active | grep -q "yale"; then
-                sudo killall -SIGINT openconnect
+                nmcli con down "yale"
             elif nmcli con show --active | grep -q "wireguard"; then
                 nmcli con down "$(nmcli con show --active | grep 'wireguard' | awk '{print $1}')"
             elif nmcli con show --active | grep -q "mull-ovpn"; then
@@ -48,7 +48,7 @@ run_disconnect() {
         exit 0
     elif nmcli con show --active | grep -q "yale"; then
         printf "\nDisconnecting from Cisco/Yale\n"
-        sudo killall -SIGINT openconnect
+        nmcli con down "yale"
         sudo systemctl start tailscaled
         sudo tailscale up
         systemctl status tailscaled | head -n3 | tr -s '[:space:]' | printf 'Tailscale = %s\n' "$(grep --color=always "active")"
