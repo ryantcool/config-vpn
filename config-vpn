@@ -48,7 +48,7 @@ run_disconnect() {
         exit 0
     elif nmcli con show --active | grep -q "yale"; then
         printf "\nDisconnecting from Cisco/Yale\n"
-        nmcli con down "yale"
+        nmcli con down "yale" && kill -9 "$(pidof openconnect)"
         sudo systemctl start tailscaled
         sudo tailscale up
         systemctl status tailscaled | head -n3 | tr -s '[:space:]' | printf 'Tailscale = %s\n' "$(grep --color=always "active")"
