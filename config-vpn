@@ -60,7 +60,7 @@ tail_up() {
 # Function to check if any current vpn connections existi
 # Will prompt user if there is a vpn active
 check_for_connection() {
-    connections="nmcli connection show --active | grep -qiE 'yale|proton'"
+    connections="nmcli connection show --active | grep -qE 'yale|proton'"
     if eval "${connections}"; then
         printf "\n\n%s\n\n" "${yellow}You seem to be connected already...${normal}"
         printf "%0.s*" $(seq 1 "$(nmcli con show --active | head -n1 | wc -m)")
