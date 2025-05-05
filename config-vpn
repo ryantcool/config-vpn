@@ -21,12 +21,14 @@ normal=$(tput sgr0)
 
 # Function to check if ipv6 is disabled via sysctl
 ipv6_check() {
-    if sysctl -a 2>/dev/null | grep -q "net.ipv6.conf.wlan0.disable_ipv6 = 0"; then
+    # Uses nmcli to look for wifi interface name
+    wifi_interface=$(nmcli --get-values GENERAL.DEVICE,GENERAL.TYPE device show | sed '/^wifi$/!{h;d;};x')
+    if sysctl -a 2>/dev/null | grep -q "net.ipv6.conf.${wifi_interface}.disable_ipv6 = 0"; then
         printf "\n%s\n" "${yellow}Disabling IPV6...${normal}"
         sudo systemctl restart systemd-sysctl.service
     else
         printf "\n%s" "${yellow}IPV6 appears to already be disabled:"
-        printf "\n%s\n\n" "${yellow}$(sysctl -a 2>/dev/null | grep "net.ipv6.conf.wlan0.disable_ipv6 = 1")${normal}"
+        printf "\n%s\n\n" "${yellow}$(sysctl -a 2>/dev/null | grep "net.ipv6.conf.${wifi_interface}.disable_ipv6 = 1")${normal}"
     fi
 }
 
