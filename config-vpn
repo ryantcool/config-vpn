@@ -62,7 +62,7 @@ tail_up() {
 # Function to check if any current vpn connections existi
 # Will prompt user if there is a vpn active
 check_for_connection() {
-    connections="nmcli connection show --active | grep -qE 'yale|proton'"
+    connections="nmcli connection show --active | grep -qE 'yale|wireguard'"
     if eval "${connections}"; then
         printf "\n\n%s\n\n" "${yellow}You seem to be connected already...${normal}"
         printf "%0.s*" $(seq 1 "$(nmcli con show --active | head -n1 | wc -m)")
@@ -73,7 +73,7 @@ check_for_connection() {
             tail_down
             if nmcli con show --active | grep -q "yale"; then
                 nmcli con down "yale" && kill -9 "$(pidof openconnect)"
-            elif nmcli con show --active | grep -q "proton*"; then
+            elif nmcli con show --active | grep -q "wireguard"; then
                 sudo wg-quick down "$(nmcli con show --active | grep "wireguard" | awk '{print $1}')"
             else
                 printf "\n%s\n" "${yellow}nothing to stop...${normal}"
@@ -162,29 +162,29 @@ connect_yale() {
     fi
 }
 
-# Main connection function for proton vpn's as defined in proton_connections
-# Executes if user chooses proton option after running config-vpn connect
-connect_proton() {
+# Main connection function for Wireguard vpn's as defined in wg_connections
+# Executes if user chooses wireguard option after running config-vpn connect
+connect_wg() {
     local host=$1
-    if [[ "${host}" = "proton" ]]; then
-        proton_connections=("protonNY" "protonSEA")
-        printf "\nWhich Proton server would you like to connect to?\n\n"
-        for index in "${!proton_connections[@]}"; do
-            printf "%d => %s\n" "${index}" "${proton_connections["${index}"]}"
+    if [[ "${host}" = "wireguard" ]]; then
+        readarray -t wg_connections < "/home/${USER}/.wg-servers"
+        printf "\nWhich Wireguard server would you like to connect to?\n\n"
+        for index in "${!wg_connections[@]}"; do
+            printf "%d => %s\n" "${index}" "${wg_connections["${index}"]}"
         done
         read -r ans
-        printf "Connecting to: %s\n\n" "${yellow}${proton_connections["${ans}"]}${normal}"
+        printf "Connecting to: %s\n\n" "${yellow}${wg_connections["${ans}"]}${normal}"
         # Shutdown TailScale to reduce DNS Issues
         tail_down
         # Turn off IPV6 so no leaks occur
         ipv6_check
-        sudo wg-quick up "${proton_connections["${ans}"]}" &
+        sudo wg-quick up "${wg_connections["${ans}"]}" &
         wait
         sleep 1
-        sudo -- sh -c "resolvectl domain ${proton_connections["${ans}"]} '~.'; \
-        resolvectl default-route ${proton_connections["${ans}"]} true; \
-        resolvectl dnsovertls ${proton_connections["${ans}"]} no"
-        printf "\n%s\n" "${green}Successfully started Proton vpn${normal}"
+        sudo -- sh -c "resolvectl domain ${wg_connections["${ans}"]} '~.'; \
+        resolvectl default-route ${wg_connections["${ans}"]} true; \
+        resolvectl dnsovertls ${wg_connections["${ans}"]} no"
+        printf "\n%s\n" "${green}Successfully started Wireguard vpn${normal}"
     fi
 }
 
@@ -193,7 +193,7 @@ main() {
         printf '%s\n\n' "${help}"
         exit 0
     elif [[ "${task}" == "connect" ]]; then
-        can_connect=("yale" "proton")
+        can_connect=("yale" "wireguard")
         printf "%s\n" "${yellow}initiating connection check...${normal}"
         if check_for_connection; then
             printf "\nWhich would you like to connect to?\n\n"
@@ -203,8 +203,8 @@ main() {
             read -r ans
             if [[ "${can_connect["${ans}"]}" == "yale" ]]; then
                 connect_yale "yale"
-            elif [[ "${can_connect["${ans}"]}" == "proton" ]]; then
-                connect_proton "proton"
+            elif [[ "${can_connect["${ans}"]}" == "wireguard" ]]; then
+                connect_wg "wireguard"
             else
                 echo "Error running can_connect function"
                 exit 1
