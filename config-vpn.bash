@@ -4,7 +4,7 @@ _config_vpn_completion() {
     local cur prev opts
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="connect disconnect -h --help"
+    opts="connect disconnect reroute -h --help"
 
     # Sets completion for main options (connect, disconnect)
     if [[ ${COMP_CWORD} -eq 1 ]]; then
