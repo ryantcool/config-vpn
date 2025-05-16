@@ -143,7 +143,7 @@ connect_yale() {
         --background \
         --protocol=anyconnect \
         --useragent AnyConnect \
-        --external-browser=/usr/bin/firefox \
+        --external-browser=/usr/bin/xdg-open \
         --interface=yale \
         -u "${user}" \
         --passwd-on-stdin \
@@ -159,6 +159,33 @@ connect_yale() {
     else
         echo Something went wrong in run_connect...
         exit 1
+    fi
+}
+
+# Rerouting function for Yale DNS
+# Has two options:
+#   route all traffic through vpn
+#   route only yale.edu yale.internal domains
+yale_dns_reroute() {
+    connection="nmcli connection show --active | grep -qE yale"
+    if eval "${connection}"; then
+        options=("all-domains" "yale-domains")
+        printf "\nWhich route would you like?\n"
+        for index in "${!options[@]}"; do
+            printf "%d => %s\n" "${index}" "${options["${index}"]}"
+        done
+        read -r ans
+        if [[ "${options["${ans}"]}" == "all-domains" ]]; then
+            sudo -- sh -c "resolvectl dns yale 172.18.190.12 172.18.190.20 172.18.190.28; \
+            resolvectl domain yale '~.'; \
+            resolvectl default-route yale true; \
+            resolvectl dnsovertls yale no"
+        elif [[ "${options["${ans}"]}" == "yale-domains" ]]; then
+            sudo -- sh -c "resolvectl dns yale 172.18.190.12 172.18.190.20 172.18.190.28; \
+            resolvectl domain yale '~yale.edu' '~yale.internal'; \
+            resolvectl default-route yale true; \
+            resolvectl dnsovertls yale no"
+        fi
     fi
 }
 
@@ -215,11 +242,13 @@ main() {
         fi
     elif [[ "${task}" == "disconnect" ]]; then
         run_disconnect
+    elif [[ "${task}" == "reroute" ]]; then
+        yale_dns_reroute
     else
     	printf "\n%s\n" "${red}You entered something wrong${normal}"
-        printf '%s\n\n' "${yellow}${help}${normal}"
+        printf "%s\n\n" "${yellow}${help}${normal}"
         exit 1
     fi
-    }
+}
 
 main
