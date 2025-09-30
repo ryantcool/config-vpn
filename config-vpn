@@ -125,8 +125,6 @@ connect_yale() {
         tail_down
         # Turn off IPV6 so no leaks occur
         ipv6_check
-        user=$(sudo sed -n 1p ~/.creds/wfs | cut -d'=' -f2)
-        password=$(sudo sed -n 2p ~/.creds/wfs | cut -d'=' -f2)
         # Able to run openconnect without sudo by adding a
         # tun device the user can use via root shell:
         # ip tuntap add <vpnname> mode tun user <username>
@@ -138,15 +136,13 @@ connect_yale() {
             printf "\n%s\n" "${green}Tun device not set, attempting to set up now${normal}"
             sudo ip tuntap add yale mode tun user "$USER"
         fi
-        { printf '%s' "${password}\n"; sleep 1; printf "phone\n"; } | openconnect \
+        openconnect \
         -s "sudo -E /etc/vpnc/vpnc-script" \
         --background \
         --protocol=anyconnect \
         --useragent AnyConnect \
         --external-browser=/usr/bin/xdg-open \
         --interface=yale \
-        -u "${user}" \
-        --passwd-on-stdin \
         "${yale_connections["${ans}"]}" &
         wait
         sleep 1
