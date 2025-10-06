@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 _config_vpn_completion() {
     local cur prev opts
